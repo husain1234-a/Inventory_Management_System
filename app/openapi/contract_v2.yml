@@ -1,0 +1,579 @@
+openapi: 3.0.3
+info:
+  title: Inventory Management System API
+  description: |
+    A comprehensive API for managing inventory, products, suppliers, and transactions.
+    
+    ## Features
+    - User Authentication and Authorization
+    - Product Management
+    - Inventory Control
+    - Supplier Management
+    - Transaction Processing
+    - Real-time Updates via WebSocket
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@example.com
+    url: https://example.com/support
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.example.com/v1
+    description: Production server
+  - url: https://staging-api.example.com/v1
+    description: Staging server
+  - url: http://localhost:8000
+    description: Local development server
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT Bearer Token Authentication
+    OAuth2Auth:
+      type: oauth2
+      flows:
+        password:
+          tokenUrl: /auth/token
+          scopes:
+            read: Read access
+            write: Write access
+            admin: Admin access
+
+  schemas:
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          pattern: "^[A-Z_]+$"
+          example: "VALIDATION_ERROR"
+          maxLength: 50
+        message:
+          type: string
+          maxLength: 500
+          example: "Invalid input data"
+        details:
+          type: object
+          additionalProperties: true
+      additionalProperties: false
+
+    ValidationError:
+      type: object
+      required:
+        - loc
+        - msg
+        - type
+      properties:
+        loc:
+          type: array
+          items:
+            type: string
+          example: ["body", "username"]
+        msg:
+          type: string
+          maxLength: 500
+        type:
+          type: string
+          maxLength: 100
+      additionalProperties: false
+
+    Token:
+      type: object
+      required:
+        - access_token
+        - token_type
+      properties:
+        access_token:
+          type: string
+          format: jwt
+          pattern: "^[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+\\.[A-Za-z0-9-_]+$"
+          maxLength: 1000
+        token_type:
+          type: string
+          enum: ["bearer"]
+      additionalProperties: false
+
+    UserCreate:
+      type: object
+      required:
+        - username
+        - email
+        - password
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          pattern: "^[a-zA-Z0-9_-]+$"
+        email:
+          type: string
+          format: email
+          maxLength: 100
+          pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 100
+          pattern: "^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d]{8,}$"
+      additionalProperties: false
+
+    UserResponse:
+      type: object
+      required:
+        - id
+        - username
+        - email
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          pattern: "^[a-zA-Z0-9_-]+$"
+        email:
+          type: string
+          format: email
+          maxLength: 100
+          pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+      additionalProperties: false
+
+    Product:
+      type: object
+      required:
+        - id
+        - name
+        - sku
+        - price
+        - supplier_id
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          minimum: 1
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: "^[\\w\\s-]+$"
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+        sku:
+          type: string
+          minLength: 1
+          maxLength: 50
+          pattern: "^[A-Z0-9-]+$"
+        price:
+          type: number
+          format: float
+          minimum: 0.01
+          maximum: 999999.99
+        supplier_id:
+          type: integer
+          format: int64
+          minimum: 1
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      additionalProperties: false
+
+    ProductCreate:
+      type: object
+      required:
+        - name
+        - sku
+        - price
+        - supplier_id
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: "^[\\w\\s-]+$"
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+        sku:
+          type: string
+          minLength: 1
+          maxLength: 50
+          pattern: "^[A-Z0-9-]+$"
+        price:
+          type: number
+          format: float
+          minimum: 0.01
+          maximum: 999999.99
+        supplier_id:
+          type: integer
+          format: int64
+          minimum: 1
+      additionalProperties: false
+
+    ProductUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: "^[\\w\\s-]+$"
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+        price:
+          type: number
+          format: float
+          minimum: 0.01
+          maximum: 999999.99
+        supplier_id:
+          type: integer
+          format: int64
+          minimum: 1
+      additionalProperties: false
+
+    PaginatedResponse:
+      type: object
+      required:
+        - items
+        - total
+        - page
+        - size
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+      additionalProperties: false
+
+  responses:
+    UnauthorizedError:
+      description: Authentication information is missing or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: UNAUTHORIZED
+            message: Invalid or missing authentication credentials
+
+    ValidationError:
+      description: Invalid input parameters
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - detail
+            properties:
+              detail:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ValidationError'
+            additionalProperties: false
+
+    NotFoundError:
+      description: The specified resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: NOT_FOUND
+            message: Resource not found
+
+    InternalServerError:
+      description: Internal server error occurred
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: INTERNAL_ERROR
+            message: An unexpected error occurred
+
+security:
+  - BearerAuth: []
+  - OAuth2Auth: []
+
+paths:
+  /auth/register:
+    post:
+      tags:
+        - authentication
+      summary: Register a new user
+      description: Create a new user account with the provided credentials
+      operationId: registerUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+      responses:
+        '201':
+          description: User successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          description: Username or email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: CONFLICT
+                message: Username or email already exists
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /auth/token:
+    post:
+      tags:
+        - authentication
+      summary: Obtain access token
+      description: Exchange credentials for an access token
+      operationId: loginUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  maxLength: 50
+                password:
+                  type: string
+                  maxLength: 100
+              additionalProperties: false
+      responses:
+        '200':
+          description: Successfully authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /products:
+    get:
+      tags:
+        - products
+      summary: List all products
+      description: Retrieve a paginated list of products
+      operationId: getProducts
+      parameters:
+        - name: page
+          in: query
+          description: Page number
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: size
+          in: query
+          description: Number of items per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: sort
+          in: query
+          description: Sort field and direction
+          required: false
+          schema:
+            type: string
+            pattern: "^[a-zA-Z_]+:(asc|desc)$"
+            example: "name:asc"
+      responses:
+        '200':
+          description: List of products
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - products
+      summary: Create a new product
+      description: Add a new product to the system
+      operationId: createProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCreate'
+      responses:
+        '201':
+          description: Product successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /products/{productId}:
+    parameters:
+      - name: productId
+        in: path
+        description: ID of the product
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+
+    get:
+      tags:
+        - products
+      summary: Get product by ID
+      description: Retrieve detailed information about a specific product
+      operationId: getProduct
+      responses:
+        '200':
+          description: Product details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - products
+      summary: Update product
+      description: Update an existing product's information
+      operationId: updateProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductUpdate'
+      responses:
+        '200':
+          description: Product successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - products
+      summary: Delete product
+      description: Remove a product from the system
+      operationId: deleteProduct
+      responses:
+        '204':
+          description: Product successfully deleted
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /products/ws:
+    get:
+      tags:
+        - products
+      summary: WebSocket connection for real-time product updates
+      description: |
+        Establish a WebSocket connection to receive real-time updates about product changes.
+        The server will send messages in the following format:
+        ```json
+        {
+          "event": "product_created|product_updated|product_deleted",
+          "data": {
+            // Product data
+          }
+        }
+        ```
+      operationId: productWebSocket
+      responses:
+        '101':
+          description: WebSocket connection established
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+tags:
+  - name: authentication
+    description: Authentication and authorization operations
+  - name: products
+    description: Product management operations
+
+externalDocs:
+  description: API Documentation
+  url: https://example.com/docs

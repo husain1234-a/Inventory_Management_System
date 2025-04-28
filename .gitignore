@@ -1,0 +1,8 @@
+.qodo/
+__pycache__/
+.venv/
+sample_app/
+prompt.txt
+.terraform/
+.terraform.lock.hcl
+.env
